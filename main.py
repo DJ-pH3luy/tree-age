@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 import numpy as np
-import matplotlib.pyplot as plt
 import cv2
-from scipy.ndimage import gaussian_filter
+
+INPUT_FILE = "input.tif"
 
 ### Tree masking vars
 MASK_MEDIAN_BLUR_SIZE = 3
@@ -16,7 +16,7 @@ TEMPLATE_SHAPE = (TEMPLATE_SIZE, TEMPLATE_SIZE)
 TEMPLATE_CENTER = tuple(int(x/2) for x in TEMPLATE_SHAPE)
 
 ### Preprocessing vars
-NLMEANS_STRENGTH = 9
+NLMEANS_STRENGTH = 10
 SHARPEN_STRENGTH = 2
 
 ### Fills holes by taking the inverse of the mask and drawing/filling contours (and inverting back).
@@ -70,9 +70,13 @@ def create_tree_mask(im):
 ### Uses normed cross-correlation for template matching https://docs.opencv.org/4.x/df/dfb/group__imgproc__object.html#gga3a7850640f1fe1f58fe91a2d7583695daf9c3ab9296f597ea71f056399a5831da.
 ### cv2.minMaxLoc() computes the maximum (among other) of the template matching function. To get to the center, the center coordinates of the template circle get added to the max-coordinates. 
 ### In ./doc/matched_template.png the matched template boundaries are drawn for visualization.
+### 
+### This method doesn't really work as it is thought because the rings are far to irregular for the cross-correlation to get a good match (if TEMPLATE_SIZE is 
+### chosen too small, the match can be very bad). 
+### On the upside, if one can adjust the TEMPLATE_SIZE accordingly to the size of the tree stump, it can get some acceptable results. 
 def approx_center(im):
     circles = np.zeros(TEMPLATE_SHAPE,np.uint8)
-    for radius in range(25,int(TEMPLATE_SIZE/2)+1,5):
+    for radius in range(25,int(TEMPLATE_SIZE/2)+1,10):
         cv2.circle(circles, TEMPLATE_CENTER, radius=radius, color=255, thickness=1)
     cv2.imwrite('./doc/sqdiff_template.png', circles)
     
@@ -123,15 +127,22 @@ def approx_age(im, center):
     return age
 
 
-
+### Main function of the program. First step is to read the image and downscale (just a tiny bit) to a nice and even resolution (Lanczos for good results).
+### Then some basic image processing is done: Median blur to eliminate hot/cold pixels 
+### --> non-local means denoising to remove even more noise (adjust NLMEANS_STRENGTH if too much detail is lost or the image stays too noisy)
+### --> sharpening via unsharp mask to regain some detail after denoising/blurring
+### The processed image gets passed to Canny edge detection to create a projection with all edges. This gets passed to create a mask for the tree stump
+### to isolate and remove the background (bitwise AND on processed image / edges with mask).
+### Then the isolated edges of the tree stump get passed to center approximation. With the center point and the isolated tree stump edges the rings get counted.
+### Visualization of each step is saved under ./doc/ . 
 def main():
-    im = cv2.resize(cv2.imread("input.tif"), (2000,1500), interpolation=cv2.INTER_LANCZOS4)
+    im = cv2.resize(cv2.imread(INPUT_FILE), (2000,1500), interpolation=cv2.INTER_LANCZOS4)
 
     filtered = cv2.medianBlur(im, 5)
     cv2.imwrite('./doc/median_filtered.png', filtered)
     denoised = cv2.fastNlMeansDenoisingColored(filtered, h=NLMEANS_STRENGTH, templateWindowSize=5,searchWindowSize=15)
     cv2.imwrite('./doc/nlmeans_denoised.png', denoised)
-    unsharp_mask = denoised - gaussian_filter(denoised, sigma=2)
+    unsharp_mask = denoised - cv2.GaussianBlur(denoised, ksize=(0,0) ,sigmaX=2) # ksize=(0,0) -> function chooses value for ksize according to sigma
     sharpened = denoised + SHARPEN_STRENGTH * unsharp_mask
     cv2.imwrite('./doc/sharpened.png', sharpened)
 
