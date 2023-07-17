@@ -43,7 +43,7 @@ def erode(im):
     erode_kernel[BOX_SIZE:2*BOX_SIZE+1, ::] = 255
     erode_kernel[::, BOX_SIZE:2*BOX_SIZE+1] = 255
 
-    cv2.imwrite('./doc/erode_kernel.png', erode_kernel)
+    cv2.imwrite("./doc/erode_kernel.png", erode_kernel)
     return cv2.erode(im, erode_kernel)
 
 
@@ -62,7 +62,7 @@ def create_tree_mask(im):
     mask = cv2.Canny(
         cv2.medianBlur(im, MASK_MEDIAN_BLUR_SIZE), 
         50, 
-        150
+        150,
     )
     for y in range(BOX_SIZE, mask.shape[0]+1, BOX_SIZE):
         for x in range(BOX_SIZE, mask.shape[1]+1, BOX_SIZE):
@@ -72,14 +72,14 @@ def create_tree_mask(im):
                 mask[y-BOX_SIZE:y, x-BOX_SIZE:x] = 0
             else:
                 mask[y-BOX_SIZE:y, x-BOX_SIZE:x] = 255
-    cv2.imwrite('./doc/mask_before_filling.png', mask)
+    cv2.imwrite("./doc/mask_before_filling.png", mask)
 
     # invert mask again for the bitwise AND (line 154)
     mask = cv2.bitwise_not(fill_holes_bw(mask))
-    cv2.imwrite('./doc/mask_before_erode.png', mask)
+    cv2.imwrite("./doc/mask_before_erode.png", mask)
 
     mask = erode(mask)
-    cv2.imwrite('./doc/final_mask.png', mask)
+    cv2.imwrite("./doc/final_mask.png", mask)
     return mask
 
 
@@ -105,9 +105,14 @@ def approx_center(im):
     """
     circles = np.zeros(TEMPLATE_SHAPE, np.uint8)
     for radius in range(25, int(TEMPLATE_SIZE/2)+1, 10):
-        cv2.circle(circles, TEMPLATE_CENTER,
-                   radius=radius, color=255, thickness=1)
-    cv2.imwrite('./doc/sqdiff_template.png', circles)
+        cv2.circle(
+            circles, 
+            TEMPLATE_CENTER,
+            radius=radius, 
+            color=255, 
+            thickness=1,
+        )
+    cv2.imwrite("./doc/sqdiff_template.png", circles)
 
     mask = np.zeros(TEMPLATE_SHAPE, np.uint8)
     cv2.circle(
@@ -115,15 +120,15 @@ def approx_center(im):
         TEMPLATE_CENTER,
         radius=int(TEMPLATE_SIZE/3),
         color=255, 
-        thickness=int(TEMPLATE_SIZE/3)
+        thickness=int(TEMPLATE_SIZE/3),
     )
-    cv2.imwrite('./doc/sqdiff_mask.png', mask)
+    cv2.imwrite("./doc/sqdiff_mask.png", mask)
 
     res = cv2.matchTemplate(
         im, 
         circles, 
         cv2.TM_CCORR_NORMED,
-        mask=mask
+        mask=mask,
     )
     (_, _, _, max_loc) = cv2.minMaxLoc(res)
     (x, y) = max_loc
@@ -136,9 +141,9 @@ def approx_center(im):
         max_loc, 
         (max_loc[0]+TEMPLATE_SIZE,max_loc[1]+TEMPLATE_SIZE), 
         color=255, 
-        thickness=2
+        thickness=2,
     )
-    cv2.imwrite('./doc/matched_template.png', im_tmp)
+    cv2.imwrite("./doc/matched_template.png", im_tmp)
     return (x, y)
 
 
@@ -157,7 +162,6 @@ def approx_age(im, center):
     visualization of the cross-sections, along which the program 
     counts the edges/rings.
     """
-    total = 0
     c = 0
     for deviation in range(-20, 20):
         patch_x0 = im[0:center[0], center[1]+deviation]
@@ -165,7 +169,7 @@ def approx_age(im, center):
         patch_x1 = im[center[0]:2000, center[1]+deviation]
         patch_y1 = im[center[0]+deviation, center[1]:1500]
 
-        total += count_rings(patch_x0)
+        total = count_rings(patch_x0)
         total += count_rings(patch_y0)
         total += count_rings(patch_x1)
         total += count_rings(patch_y1)
@@ -178,16 +182,16 @@ def approx_age(im, center):
         (0, center[1]), 
         (2000, center[1]), 
         color=255, 
-        thickness=3
+        thickness=3,
     )
     cv2.line(
         im, 
         (center[0], 0), 
         (center[0], 1500), 
         color=255, 
-        thickness=3
+        thickness=3,
     )
-    cv2.imwrite('./doc/counting_cross_section_edges_and_masked.png', im)
+    cv2.imwrite("./doc/counting_cross_section_edges_and_masked.png", im)
     return age
 
 
@@ -210,26 +214,29 @@ def main():
     point and the isolated tree stump edges the rings get counted.
     Visualization of each step is saved under ./doc/ .
     """
-    im = cv2.resize(cv2.imread(INPUT_FILE), (2000, 1500),
-                    interpolation=cv2.INTER_LANCZOS4)
+    im = cv2.resize(
+        cv2.imread(INPUT_FILE), 
+        (2000, 1500),
+        interpolation=cv2.INTER_LANCZOS4,
+    )
 
     filtered = cv2.medianBlur(im, 5)
-    cv2.imwrite('./doc/median_filtered.png', filtered)
+    cv2.imwrite("./doc/median_filtered.png", filtered)
     denoised = cv2.fastNlMeansDenoisingColored(
         filtered, 
         h=NLMEANS_STRENGTH, 
         templateWindowSize=5, 
-        searchWindowSize=15
+        searchWindowSize=15,
     )
-    cv2.imwrite('./doc/nlmeans_denoised.png', denoised)
+    cv2.imwrite("./doc/nlmeans_denoised.png", denoised)
     # ksize=(0,0) -> function chooses value for ksize according to sigma
     unsharp_mask = denoised - \
         cv2.GaussianBlur(denoised, ksize=(0, 0), sigmaX=2)
     sharpened = denoised + SHARPEN_STRENGTH * unsharp_mask
-    cv2.imwrite('./doc/sharpened.png', sharpened)
+    cv2.imwrite("./doc/sharpened.png", sharpened)
 
     edges = cv2.Canny(sharpened, 75, 150)
-    cv2.imwrite('./doc/canny_edges.png', edges)
+    cv2.imwrite("./doc/canny_edges.png", edges)
 
     tree_mask = create_tree_mask(im)
     tree_edges = cv2.bitwise_and(edges, tree_mask)
@@ -245,21 +252,21 @@ def main():
         (0, center[1]), 
         (2000, center[1]), 
         color=255, 
-        thickness=3
+        thickness=3,
     )
     cv2.line(
         tree, 
         (center[0], 0), 
         (center[0], 1500), 
         color=255, 
-        thickness=3
+        thickness=3,
     )
-    cv2.imwrite('./doc/original_with_mask_and_cross_section.png', tree)
+    cv2.imwrite("./doc/original_with_mask_and_cross_section.png", tree)
 
 
 if __name__ == "__main__":
     try:
-        os.mkdir("doc")
-    except:
+        os.mkdir("./doc")
+    except FileExistsError:
         pass
     main()
